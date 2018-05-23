@@ -1,0 +1,53 @@
+package my.person
+
+type Person {
+  firstName: String verifying IsNonBlank
+  lastName: String verifying IsNonBlank
+  phone: String verifying IsLengthOf(10, 12)
+
+  verify {
+    "First name and last name should not be the same"
+    (person) => {
+      person.firstName != person.lastName
+    }
+  }
+}
+
+verification IsNonBlank {
+  "The string should not be blank"
+  (string: String) => {
+    string.trim().nonEmpty()
+  }
+}
+
+verification IsLengthOf(min: Number, max: Number) {
+  message("is.length.of", Number, Number)
+  (string: String) => {
+    if (min <= string.length && string.length <= max) {
+      ok
+    } else {
+      ko(min, max)
+    }
+  }
+}
+
+verification IsNonEmptyList {
+  "The list should not be empty"
+  [A](list: List[A]) => {
+    list.nonEmpty()
+  }
+}
+
+verification HasFrenchPhoneNumber {
+  "The person should have a french phone number"
+  (person: Person) => {
+    person.phone.startsWith("+33")
+  }
+}
+
+type NonEmptyList[A] = List[A] verifying IsNonEmptyList
+
+type Period {
+  start: Date
+  end: Date
+}
