@@ -90,7 +90,10 @@ object ScalaTestsAstGenerator {
   }
 
   def generateCallFunction(ast: CallFunction, indent: String): String = {
-    s"${generateExpression(ast.target, indent)}${ast.arguments.map(generateExpression(_, indent)).mkString("(", ", ", ")")}"
+    val inner = generateExpression(ast.target, indent)
+    val generics = generateTypeGenerics(ast.generics)
+    val arguments = ast.arguments.map(generateExpression(_, indent)).mkString(", ")
+    s"${inner}${generics}(${arguments})"
   }
 
   def generateCallHigherOrderFunction(ast: CallHigherOrderFunction, indent: String): String = {
@@ -174,7 +177,8 @@ object ScalaTestsAstGenerator {
   }
 
   def generateTestDeclaration(ast: TestDeclaration, indent: String): String = {
-    s""""${ast.subject}" should "${ast.name}" in {
+    val subject = if (ast.subject == "it") "it" else s""""${ast.subject}""""
+    s"""${subject} should "${ast.name}" in {
        |${inc(indent)}${generateExpression(ast.body, inc(indent))}
        |${indent}}""".stripMargin
   }

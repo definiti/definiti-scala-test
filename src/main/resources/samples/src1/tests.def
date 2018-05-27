@@ -60,17 +60,17 @@ context tests {{{
 
   test verification IsNonEmptyList {
     accept
-      List[String]("item")
-      List[String]("")
-      List[String]("one", "two")
-      List[Number](1, 2)
-      List[List[Number]](List[Number]())
-      List[List[Number]](List[Number](1))
+      list[String]("item")
+      list[String]("")
+      list[String]("one", "two")
+      list[Number](1, 2)
+      list[List[Number]](list[Number]())
+      list[List[Number]](list[Number](1))
 
     refuse
-      List[String]()
-      List[Number]()
-      List[List[Number]]()
+      list[String]()
+      list[Number]()
+      list[List[Number]]()
   }
 
   test verification HasFrenchPhoneNumber {
@@ -108,8 +108,8 @@ context tests {{{
   }
 
   test type NonEmptyList[String] {
-    accept List[String]("")
-    refuse List[String]()
+    accept list[String]("")
+    refuse list[String]()
   }
 
   generator name(): String = alphaChar().toUpperCase().append(alphaString().toLowerCase())

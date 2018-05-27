@@ -1,56 +1,49 @@
 package definiti.scalatests.builder.tests
 
 import definiti.common.ast._
-import definiti.scalatests.builder.common.GenExpressionBuilder
+import definiti.scalatests.builder.common.{GenExpressionBuilder, TypeBuilder}
 import definiti.scalatests.{ast => scalaAst}
 import definiti.tests.ast.GeneratorMeta
 import definiti.tests.validation.helpers.ScopedExpression
 import definiti.tests.{ast => testsAst}
 
 object TestTypeBuilder {
-  def buildTestType(testType: testsAst.TestType, generators: Seq[GeneratorMeta])(implicit library: Library, coreGenerators: Seq[GeneratorMeta]): Seq[scalaAst.Statement] = {
-    val typ = library.typesMap(testType.typ.name)
-    val testCases = extractTestCases(testType)
-    buildTestTypes(typ, testCases, generators)
+  def buildTestType(typ: testsAst.Type, testCases: Seq[TestCase], generators: Seq[GeneratorMeta])(implicit library: Library, coreGenerators: Seq[GeneratorMeta]): Seq[scalaAst.Statement] = {
+    val classDefinition = library.typesMap(typ.name)
+    buildTestTypes(classDefinition, typ, testCases, generators)
   }
 
-  private def extractTestCases(testType: testsAst.TestType): Seq[TestCase] = {
-    testType.cases.flatMap { testCase =>
-      testCase.subCases.map { subCase =>
-        TestCase(testCase, subCase)
-      }
-    }
-  }
-
-  private def buildTestTypes(typ: ClassDefinition, testCases: Seq[TestCase], generators: Seq[GeneratorMeta])(implicit library: Library, coreGenerators: Seq[GeneratorMeta]): Seq[scalaAst.Statement] = {
+  private def buildTestTypes(classDefinition: ClassDefinition, typ: testsAst.Type, testCases: Seq[TestCase], generators: Seq[GeneratorMeta])(implicit library: Library, coreGenerators: Seq[GeneratorMeta]): Seq[scalaAst.Statement] = {
     testCases.zipWithIndex.map { case (testCase, index) =>
       scalaAst.TestDeclaration(
-        subject = s"Type ${typ.fullName}",
+        subject = s"Type ${classDefinition.fullName}",
         name = testCase.testCase.comment match {
           case Some(comment) => s"${comment} (case ${index})"
           case None => s"case ${index}"
         },
-        body = buildTestTypeBody(typ, testCase, generators)
+        body = buildTestTypeBody(classDefinition, typ, testCase, generators)
       )
     }
   }
 
-  private def buildTestTypeBody(typ: ClassDefinition, testCase: TestCase, generators: Seq[GeneratorMeta])(implicit library: Library, coreGenerators: Seq[GeneratorMeta]): scalaAst.Expression = {
+  private def buildTestTypeBody(classDefinition: ClassDefinition, typ: testsAst.Type, testCase: TestCase, generators: Seq[GeneratorMeta])(implicit library: Library, coreGenerators: Seq[GeneratorMeta]): scalaAst.Expression = {
     val scopedExpression = new ScopedExpression[testsAst.Expression](testCase.subCase.expression, Map.empty, generators, library)
     scalaAst.CallHigherOrderFunction(
       target = scalaAst.Value("forAll"),
       arguments = Seq(GenExpressionBuilder.buildGenExpression(scopedExpression)),
       functionArguments = Seq("input"),
-      functionBody = buildTestTypeBodyAssertion(buildTypeVerificationCall(typ, testCase), typ, testCase),
+      functionBody = buildTestTypeBodyAssertion(buildTypeVerificationCall(classDefinition, typ, testCase), classDefinition, testCase),
       generics = Seq.empty
     )
   }
 
-  private def buildTypeVerificationCall(typ: ClassDefinition, testCase: TestCase): scalaAst.Expression = {
+  private def buildTypeVerificationCall(classDefinition: ClassDefinition, typ: testsAst.Type, testCase: TestCase): scalaAst.Expression = {
     scalaAst.CallMethod(
-      target = scalaAst.CallAttribute(
-        target = scalaAst.Value(typ.fullName),
-        name = "verification"
+      target = scalaAst.CallMethod(
+        target = scalaAst.Value(classDefinition.fullName),
+        name = "verification",
+        arguments = Seq.empty,
+        generics = typ.generics.map(TypeBuilder.buildType)
       ),
       name = "verify",
       arguments = Seq(scalaAst.Value("input"))
@@ -73,10 +66,5 @@ object TestTypeBuilder {
         )
     }
   }
-
-  case class TestCase(
-    testCase: testsAst.Case,
-    subCase: testsAst.SubCase
-  )
 
 }

@@ -20,14 +20,12 @@ class ScalaTestAstBuilder(config: Configuration, library: Library) {
   }
 
   private def buildNamespace(namespace: Namespace, generatorsMeta: Seq[GeneratorMeta])(implicit coreGenerators: Seq[GeneratorMeta]): scalaAst.Namespace = {
-    val contexts = namespace.elements.collect {
-      case extendedContext: ExtendedContext[testsAst.TestsContext] if extendedContext.name == "tests" => extendedContext
+    val tests = extractTests(namespace)
+    val testVerificationStatements = extractTestVerifications(tests).flatMap { case (verification, testCases) =>
+      TestVerificationBuilder.buildTestVerification(verification, testCases, generatorsMeta)
     }
-    val statements = contexts.flatMap { context =>
-      context.content.tests.flatMap {
-        case testVerification: testsAst.TestVerification => TestVerificationBuilder.buildTestVerification(testVerification, generatorsMeta)
-        case testType: testsAst.TestType => TestTypeBuilder.buildTestType(testType, generatorsMeta)
-      }
+    val testTypeStatements = extractTestTypes(tests).flatMap { case (typ, testCases) =>
+      TestTypeBuilder.buildTestType(typ, testCases, generatorsMeta)
     }
     val namespaceName = if (namespace.fullName.isEmpty) "root" else namespace.fullName
     scalaAst.Namespace(
@@ -36,9 +34,49 @@ class ScalaTestAstBuilder(config: Configuration, library: Library) {
       elements = Seq(scalaAst.ClassDef(
         name = s"${StringUtils.lastPart(namespaceName).capitalize}Spec",
         extendz = Seq("FlatSpec", "Matchers", "PropertyChecks"),
-        body = statements
+        body = (testVerificationStatements ++ testTypeStatements).toSeq
       ))
     )
+  }
+
+  private def extractTests(namespace: Namespace): Seq[testsAst.Test] = {
+    namespace.elements
+      .collect {
+        case context: ExtendedContext[testsAst.TestsContext] if context.name == "tests" => context
+      }
+      .flatMap(_.content.tests)
+  }
+
+  private def extractTestVerifications(tests: Seq[testsAst.Test]): Map[String, Seq[TestCase]] = {
+    var testVerifications = Map.empty[String, Seq[TestCase]]
+    tests.foreach {
+      case testVerification: testsAst.TestVerification =>
+        val testCases = testVerifications.getOrElse(testVerification.verification, Seq.empty)
+        val newTestCases = testVerification.cases.flatMap(caseToTestCases)
+        val newEntry = testVerification.verification -> (testCases ++ newTestCases)
+        testVerifications = testVerifications + newEntry
+      case _ =>
+    }
+    testVerifications
+  }
+
+  private def caseToTestCases(testCase: testsAst.Case): Seq[TestCase] = {
+    testCase.subCases.map { subCase =>
+      TestCase(testCase, subCase)
+    }
+  }
+
+  private def extractTestTypes(tests: Seq[testsAst.Test]): Map[testsAst.Type, Seq[TestCase]] = {
+    var testTypes = Map.empty[testsAst.Type, Seq[TestCase]]
+    tests.foreach {
+      case testType: testsAst.TestType =>
+        val testCases = testTypes.getOrElse(testType.typ, Seq.empty)
+        val newTestCases = testType.cases.flatMap(caseToTestCases)
+        val newEntry = testType.typ -> (testCases ++ newTestCases)
+        testTypes = testTypes + newEntry
+      case _ =>
+    }
+    testTypes
   }
 
   private def defaultImports(): Seq[scalaAst.Import] = Seq(

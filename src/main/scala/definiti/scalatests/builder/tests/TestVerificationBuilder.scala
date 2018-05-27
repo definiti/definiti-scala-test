@@ -7,27 +7,23 @@ import definiti.tests.ast.GeneratorMeta
 import definiti.tests.{ast => testsAst}
 
 object TestVerificationBuilder {
-  def buildTestVerification(testVerification: testsAst.TestVerification, generators: Seq[GeneratorMeta])(implicit library: Library, coreGenerators: Seq[GeneratorMeta]): Seq[scalaAst.Statement] = {
-    val verification = library.verificationsMap(testVerification.verification)
-    val testCases = extractTestCases(testVerification)
+  def buildTestVerification(verificationName: String, testCases: Seq[TestCase], generators: Seq[GeneratorMeta])(implicit library: Library, coreGenerators: Seq[GeneratorMeta]): Seq[scalaAst.Statement] = {
+    val verification = library.verificationsMap(verificationName)
     buildTestVerifications(verification, testCases, generators)
-  }
-
-  private def extractTestCases(testVerification: testsAst.TestVerification): Seq[TestCase] = {
-    testVerification.cases.flatMap { testCase =>
-      testCase.subCases.map { subCase =>
-        TestCase(testCase, subCase)
-      }
-    }
   }
 
   private def buildTestVerifications(verification: Verification, testCases: Seq[TestCase], generators: Seq[GeneratorMeta])(implicit library: Library, coreGenerators: Seq[GeneratorMeta]): Seq[scalaAst.Statement] = {
     testCases.zipWithIndex.map { case (testCase, index) =>
       scalaAst.TestDeclaration(
-        subject = s"Verification ${verification.fullName}",
+        subject = if (index == 0) s"Verification ${verification.fullName}" else "it",
         name = testCase.testCase.comment match {
           case Some(comment) => s"${comment} (case ${index})"
-          case None => s"case ${index}"
+          case None =>
+            val kind = testCase.testCase.kind match {
+              case testsAst.CaseKind.accept => "be valid"
+              case testsAst.CaseKind.refuse => "be invalid"
+            }
+            s"${kind} for case ${index + 1}"
         },
         body = buildTestVerificationBody(verification, testCase, generators)
       )
@@ -62,22 +58,27 @@ object TestVerificationBuilder {
       case testsAst.CaseKind.accept =>
         scalaAst.CallMethod(
           target = result,
-          name = "shouldBe",
-          arguments = Seq(scalaAst.Value("a[Valid[_]]"))
+          name = "should",
+          arguments = Seq(function("===", scalaAst.Value("None")))
         )
       case testsAst.CaseKind.refuse =>
-        scalaAst.CallMethod(
-          target = result,
-          name = "should",
-          arguments = Seq(
-            function("===", function("Invalid", function("Seq",
-              function("Error",
-                scalaAst.StringExpression(""),
-                function("Seq", buildVerificationMessage(verification, testCase, generators))
-              )
-            )))
+        if (testCase.subCase.messageArguments.nonEmpty) {
+          scalaAst.CallMethod(
+            target = result,
+            name = "should",
+            arguments = Seq(
+              function("===", function("Some",
+                buildVerificationMessage(verification, testCase, generators)
+              ))
+            )
           )
-        )
+        } else {
+          scalaAst.CallMethod(
+            target = result,
+            name = "shouldBe",
+            arguments = Seq(scalaAst.Value("a[Some[_]]"))
+          )
+        }
     }
   }
 
@@ -91,15 +92,9 @@ object TestVerificationBuilder {
   private def buildVerificationMessage(verification: Verification, testCase: TestCase, generators: Seq[GeneratorMeta])(implicit library: Library): scalaAst.Expression = {
     verification.message match {
       case literal: LiteralMessage => function("Message0", scalaAst.StringExpression(literal.message))
-      case _: TypedMessage =>
+      case typed: TypedMessage =>
         val args = testCase.subCase.messageArguments
-        function(s"Message${args.length}", args.map(ExpressionBuilder.scopedExpression(_, generators)).map(ExpressionBuilder.buildSimpleExpression): _*)
+        function(s"Message${args.length}", scalaAst.StringExpression(typed.message) +: args.map(ExpressionBuilder.scopedExpression(_, generators)).map(ExpressionBuilder.buildSimpleExpression): _*)
     }
   }
-
-  case class TestCase(
-    testCase: testsAst.Case,
-    subCase: testsAst.SubCase
-  )
-
 }

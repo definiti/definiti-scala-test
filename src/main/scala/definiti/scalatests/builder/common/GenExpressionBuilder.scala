@@ -61,14 +61,18 @@ object GenExpressionBuilder {
       val arguments = generation.arguments.zipWithIndex.map { case (argument, index) =>
         scalaAst.ForComprehensionCase(s"arg${index}", "<-", buildGenExpression(argument))
       }
-      val yielding = scalaAst.CallFunction(
-        target = generatorName(generation.expression),
-        arguments = generation.arguments.indices.map(index => scalaAst.Value(s"arg${index}")),
-        generics = generation.generics.map(TypeBuilder.buildType)
+      val generationCall = scalaAst.ForComprehensionCase(
+        name = "result",
+        operator = "<-",
+        body = scalaAst.CallFunction(
+          target = generatorName(generation.expression),
+          arguments = generation.arguments.indices.map(index => scalaAst.Value(s"arg${index}")),
+          generics = generation.generics.map(TypeBuilder.buildType)
+        )
       )
       scalaAst.ForComprehension(
-        cases = arguments,
-        yielding = yielding
+        cases = arguments :+ generationCall,
+        yielding = scalaAst.Value("result")
       )
     } else {
       scalaAst.CallFunction(

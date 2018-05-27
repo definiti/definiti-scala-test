@@ -5,7 +5,8 @@ import definiti.scalatests.{ast => scalaAst}
 
 object TypeBuilder {
   private val nativeMap = Map(
-    "Date" -> "LocalDateTime"
+    "Date" -> "LocalDateTime",
+    "Number" -> "BigDecimal"
   )
 
   def buildType(typ: testsAst.Type): scalaAst.Type = {
