@@ -2,6 +2,7 @@ package definiti.scalatests.builder.generators
 
 import definiti.common.ast._
 import definiti.common.utils.StringUtils
+import definiti.scalatests.builder.BuilderContext
 import definiti.scalatests.builder.common.GeneratorsExtractor
 import definiti.scalatests.{Configuration, ast => scalaAst}
 import definiti.tests.ast.GeneratorMeta
@@ -12,21 +13,24 @@ class ScalaGeneratorsAstBuilder(config: Configuration, library: Library) {
   implicit def lib: Library = library
 
   def build(root: Root): scalaAst.Root = {
-    implicit val coreGenerators = CoreGenerators.coreGenerators.fold(_ => Seq.empty, identity)
-    val generators = GeneratorsExtractor.extractGenerators(root) ++ coreGenerators
+    implicit val builderContext: BuilderContext = BuilderContext(
+      library = library,
+      coreGenerators = CoreGenerators.coreGenerators.fold(_ => Seq.empty, identity),
+      projectGenerators = GeneratorsExtractor.extractGenerators(root)
+    )
     scalaAst.Root(
       namespaces = root.namespaces
-        .map(buildNamespace(_, generators))
+        .map(buildNamespace)
         .filter(_.elements.nonEmpty)
     )
   }
 
-  private def buildNamespace(namespace: Namespace, generatorsMeta: Seq[GeneratorMeta])(implicit coreGenerators: Seq[GeneratorMeta]): scalaAst.Namespace = {
+  private def buildNamespace(namespace: Namespace)(implicit builderContext: BuilderContext): scalaAst.Namespace = {
     val contexts = namespace.elements.collect {
       case extendedContext: ExtendedContext[testsAst.TestsContext] if extendedContext.name == "tests" => extendedContext
     }
     val statements = contexts.flatMap { context =>
-      context.content.generators.map(GeneratorBuilder.buildGenerator(_, generatorsMeta))
+      context.content.generators.map(GeneratorBuilder.buildGenerator)
     }
     val namespaceName = if (namespace.fullName.isEmpty) "root" else namespace.fullName
     scalaAst.Namespace(

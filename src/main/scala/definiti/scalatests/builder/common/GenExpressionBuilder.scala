@@ -1,20 +1,19 @@
 package definiti.scalatests.builder.common
 
-import definiti.common.ast.Library
 import definiti.scalamodel.utils.StringUtils
+import definiti.scalatests.builder.BuilderContext
 import definiti.scalatests.{ast => scalaAst}
-import definiti.tests.ast.GeneratorMeta
 import definiti.tests.validation.helpers.ScopedExpression
 import definiti.tests.{ast => testsAst}
 
 object GenExpressionBuilder {
-  def buildGenExpression(scoped: ScopedExpression[testsAst.Expression])(implicit library: Library, coreGenerators: Seq[GeneratorMeta]): scalaAst.Expression = {
-    if (isGenerator(scoped.expression)) {
+  def buildGenExpression(scoped: ScopedExpression[testsAst.Expression])(implicit builderContext: BuilderContext): scalaAst.Expression = {
+    if (isGenerator(scoped.expression) || scoped.isGeneratorExpression) {
       scoped.expression match {
         case boolean: testsAst.BooleanExpression => constGen(scalaAst.Value(boolean.value.toString))
         case number: testsAst.NumberExpression => constGen(scalaAst.Value(number.value.toString()))
         case string: testsAst.StringExpression => constGen(scalaAst.StringExpression(string.value.substring(1, string.value.length - 1)))
-        case reference: testsAst.Reference => constGen(scalaAst.Value(reference.target))
+        case reference: testsAst.Reference => buildReferenceExpression(ScopedExpression(reference, scoped))
         case generation: testsAst.GenerationExpression => buildGenerationExpression(ScopedExpression(generation, scoped))
         case structure: testsAst.StructureExpression => buildGenStructure(ScopedExpression(structure, scoped))
         case methodCall: testsAst.MethodCall => buildGenMethodCall(ScopedExpression(methodCall, scoped))
@@ -56,11 +55,18 @@ object GenExpressionBuilder {
     )
   }
 
-  private def buildGenerationExpression(generation: ScopedExpression[testsAst.GenerationExpression])(implicit library: Library, coreGenerators: Seq[GeneratorMeta]): scalaAst.Expression = {
+  private def buildReferenceExpression(reference: ScopedExpression[testsAst.Reference])(implicit builderContext: BuilderContext): scalaAst.Expression = {
+    if (reference.isGeneratorExpression) {
+      scalaAst.Value(reference.target)
+    } else {
+      constGen(scalaAst.Value(reference.target))
+    }
+  }
+
+  private def buildGenerationExpression(generation: ScopedExpression[testsAst.GenerationExpression])(implicit builderContext: BuilderContext): scalaAst.Expression = {
     if (generation.arguments.nonEmpty) {
-      val arguments = generation.arguments.zipWithIndex.map { case (argument, index) =>
-        scalaAst.ForComprehensionCase(s"arg${index}", "<-", buildGenExpression(argument))
-      }
+      val ignore = scalaAst.ForComprehensionCase("_", "<-", scalaAst.Value("initializeGenContext"))
+      val arguments = generateArgumentExpressions(generation)
       val generationCall = scalaAst.ForComprehensionCase(
         name = "result",
         operator = "<-",
@@ -71,7 +77,7 @@ object GenExpressionBuilder {
         )
       )
       scalaAst.ForComprehension(
-        cases = arguments :+ generationCall,
+        cases = ignore +: arguments :+ generationCall,
         yielding = scalaAst.Value("result")
       )
     } else {
@@ -83,8 +89,28 @@ object GenExpressionBuilder {
     }
   }
 
-  private def generatorName(generation: testsAst.GenerationExpression)(implicit coreGenerators: Seq[GeneratorMeta]): scalaAst.Expression = {
-    if (coreGenerators.exists(_.fullName == generation.name)) {
+  private def generateArgumentExpressions(
+    generation: ScopedExpression[testsAst.GenerationExpression]
+  )(implicit builderContext: BuilderContext): Seq[scalaAst.ForComprehensionCase] = {
+    extractArgumentParameterIndex(generation).map { case (argument, parameter, index) =>
+      val operator = if (parameter.isGen) "=" else "<-"
+      scalaAst.ForComprehensionCase(s"arg${index}", operator, buildGenExpression(argument))
+    }
+  }
+
+  private def extractArgumentParameterIndex(
+    generation: ScopedExpression[testsAst.GenerationExpression]
+  )(implicit builderContext: BuilderContext): Seq[(ScopedExpression[testsAst.Expression], testsAst.Parameter, Int)] = {
+    val parameters = builderContext.generator(generation.name).parameters
+    generation.arguments
+      .zipWithIndex
+      .map { case (argument, index) =>
+        (argument, parameters.applyOrElse(index, (_: Int) => parameters.last), index)
+      }
+  }
+
+  private def generatorName(generation: testsAst.GenerationExpression)(implicit builderContext: BuilderContext): scalaAst.Expression = {
+    if (builderContext.coreGenerators.exists(_.fullName == generation.name)) {
       scalaAst.Value(generation.name)
     } else {
       val nameWithoutNamespace = StringUtils.lastPart(generation.name)
@@ -95,7 +121,7 @@ object GenExpressionBuilder {
     }
   }
 
-  private def buildGenStructure(structure: ScopedExpression[testsAst.StructureExpression])(implicit library: Library, coreGenerators: Seq[GeneratorMeta]): scalaAst.Expression = {
+  private def buildGenStructure(structure: ScopedExpression[testsAst.StructureExpression])(implicit builderContext: BuilderContext): scalaAst.Expression = {
     val generators = structure.fields.map(field => buildGenExpression(field.expression))
     val forComprehensionCases = structure.fields.zip(generators).map { case (field, expression) =>
       scalaAst.ForComprehensionCase(
@@ -114,7 +140,7 @@ object GenExpressionBuilder {
     )
   }
 
-  private def buildGenMethodCall(methodCall: ScopedExpression[testsAst.MethodCall])(implicit library: Library, coreGenerators: Seq[GeneratorMeta]): scalaAst.Expression = {
+  private def buildGenMethodCall(methodCall: ScopedExpression[testsAst.MethodCall])(implicit builderContext: BuilderContext): scalaAst.Expression = {
     val inner = scalaAst.ForComprehensionCase(
       name = "inner",
       operator = "<-",
@@ -150,7 +176,7 @@ object GenExpressionBuilder {
     )
   }
 
-  private def buildGenAttributeCall(attributeCall: ScopedExpression[testsAst.AttributeCall])(implicit library: Library, coreGenerators: Seq[GeneratorMeta]): scalaAst.Expression = {
+  private def buildGenAttributeCall(attributeCall: ScopedExpression[testsAst.AttributeCall])(implicit builderContext: BuilderContext): scalaAst.Expression = {
     val inner = scalaAst.ForComprehensionCase(
       name = "inner",
       operator = "<-",
@@ -177,7 +203,7 @@ object GenExpressionBuilder {
     )
   }
 
-  private def buildGenCondition(condition: ScopedExpression[testsAst.Condition])(implicit library: Library, coreGenerators: Seq[GeneratorMeta]): scalaAst.Expression = {
+  private def buildGenCondition(condition: ScopedExpression[testsAst.Condition])(implicit builderContext: BuilderContext): scalaAst.Expression = {
     val conditionCase = scalaAst.ForComprehensionCase("condition", "<-", buildGenExpression(condition.condition))
     val thenCase = scalaAst.ForComprehensionCase("thenCase", "<-", buildGenExpression(condition.thenCase))
     val elseCase = scalaAst.ForComprehensionCase("elseCase", "<-", buildGenExpression(condition.elseCase))
@@ -192,7 +218,7 @@ object GenExpressionBuilder {
     )
   }
 
-  private def buildGenBinary(binary: ScopedExpression[testsAst.Binary])(implicit library: Library, coreGenerators: Seq[GeneratorMeta]): scalaAst.Expression = {
+  private def buildGenBinary(binary: ScopedExpression[testsAst.Binary])(implicit builderContext: BuilderContext): scalaAst.Expression = {
     val left = scalaAst.ForComprehensionCase("left", "<-", buildGenExpression(binary.left))
     val right = scalaAst.ForComprehensionCase("right", "<-", buildGenExpression(binary.right))
     val yielding = scalaAst.BinaryOp(ExpressionBuilder.binaryOperatorToString(binary.operator), scalaAst.Value("left"), scalaAst.Value("right"))

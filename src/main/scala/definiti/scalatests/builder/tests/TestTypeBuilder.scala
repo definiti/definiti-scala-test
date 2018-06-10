@@ -1,19 +1,19 @@
 package definiti.scalatests.builder.tests
 
 import definiti.common.ast._
+import definiti.scalatests.builder.BuilderContext
 import definiti.scalatests.builder.common.{GenExpressionBuilder, TypeBuilder}
 import definiti.scalatests.{ast => scalaAst}
-import definiti.tests.ast.GeneratorMeta
 import definiti.tests.validation.helpers.ScopedExpression
 import definiti.tests.{ast => testsAst}
 
 object TestTypeBuilder {
-  def buildTestType(typ: testsAst.Type, testCases: Seq[TestCase], generators: Seq[GeneratorMeta])(implicit library: Library, coreGenerators: Seq[GeneratorMeta]): Seq[scalaAst.Statement] = {
-    val classDefinition = library.typesMap(typ.name)
-    buildTestTypes(classDefinition, typ, testCases, generators)
+  def buildTestType(typ: testsAst.Type, testCases: Seq[TestCase])(implicit builderContext: BuilderContext): Seq[scalaAst.Statement] = {
+    val classDefinition = builderContext.library.typesMap(typ.name)
+    buildTestTypes(classDefinition, typ, testCases)
   }
 
-  private def buildTestTypes(classDefinition: ClassDefinition, typ: testsAst.Type, testCases: Seq[TestCase], generators: Seq[GeneratorMeta])(implicit library: Library, coreGenerators: Seq[GeneratorMeta]): Seq[scalaAst.Statement] = {
+  private def buildTestTypes(classDefinition: ClassDefinition, typ: testsAst.Type, testCases: Seq[TestCase])(implicit builderContext: BuilderContext): Seq[scalaAst.Statement] = {
     testCases.zipWithIndex.map { case (testCase, index) =>
       scalaAst.TestDeclaration(
         subject = s"Type ${classDefinition.fullName}",
@@ -21,13 +21,13 @@ object TestTypeBuilder {
           case Some(comment) => s"${comment} (case ${index})"
           case None => s"case ${index}"
         },
-        body = buildTestTypeBody(classDefinition, typ, testCase, generators)
+        body = buildTestTypeBody(classDefinition, typ, testCase)
       )
     }
   }
 
-  private def buildTestTypeBody(classDefinition: ClassDefinition, typ: testsAst.Type, testCase: TestCase, generators: Seq[GeneratorMeta])(implicit library: Library, coreGenerators: Seq[GeneratorMeta]): scalaAst.Expression = {
-    val scopedExpression = new ScopedExpression[testsAst.Expression](testCase.subCase.expression, Map.empty, generators, library)
+  private def buildTestTypeBody(classDefinition: ClassDefinition, typ: testsAst.Type, testCase: TestCase)(implicit builderContext: BuilderContext): scalaAst.Expression = {
+    val scopedExpression = new ScopedExpression[testsAst.Expression](testCase.subCase.expression, Map.empty, builderContext.generators, builderContext.library)
     scalaAst.CallHigherOrderFunction(
       target = scalaAst.Value("forAll"),
       arguments = Seq(GenExpressionBuilder.buildGenExpression(scopedExpression)),

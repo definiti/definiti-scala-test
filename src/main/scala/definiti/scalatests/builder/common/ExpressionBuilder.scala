@@ -1,13 +1,13 @@
 package definiti.scalatests.builder.common
 
-import definiti.common.ast.{Library, NativeClassDefinition}
+import definiti.common.ast.NativeClassDefinition
+import definiti.scalatests.builder.BuilderContext
 import definiti.scalatests.{ast => scalaAst}
-import definiti.tests.ast.GeneratorMeta
 import definiti.tests.validation.helpers.ScopedExpression
 import definiti.tests.{ast => testsAst}
 
 object ExpressionBuilder {
-  def buildSimpleExpression(scoped: ScopedExpression[testsAst.Expression])(implicit library: Library): scalaAst.Expression = {
+  def buildSimpleExpression(scoped: ScopedExpression[testsAst.Expression])(implicit builderContext: BuilderContext): scalaAst.Expression = {
     scoped.expression match {
       case boolean: testsAst.BooleanExpression => scalaAst.Value(boolean.value.toString)
       case number: testsAst.NumberExpression => scalaAst.Value(number.value.toString())
@@ -22,7 +22,7 @@ object ExpressionBuilder {
     }
   }
 
-  private def buildStructure(structure: ScopedExpression[testsAst.StructureExpression])(implicit library: Library): scalaAst.Expression = {
+  private def buildStructure(structure: ScopedExpression[testsAst.StructureExpression])(implicit builderContext: BuilderContext): scalaAst.Expression = {
     scalaAst.CallCaseClass(
       name = structure.typ.name,
       arguments = structure.fields.map { field =>
@@ -31,7 +31,7 @@ object ExpressionBuilder {
     )
   }
 
-  private def buildMethodCall(methodCall: ScopedExpression[testsAst.MethodCall])(implicit library: Library): scalaAst.Expression = {
+  private def buildMethodCall(methodCall: ScopedExpression[testsAst.MethodCall])(implicit builderContext: BuilderContext): scalaAst.Expression = {
     if (isNative(methodCall.inner)) {
       scalaAst.CallMethod(
         target = scalaAst.Value(s"${methodCall.inner.typeOfExpression.name}Extension"),
@@ -49,7 +49,7 @@ object ExpressionBuilder {
     }
   }
 
-  private def buildAttributeCall(attributeCall: ScopedExpression[testsAst.AttributeCall])(implicit library: Library): scalaAst.Expression = {
+  private def buildAttributeCall(attributeCall: ScopedExpression[testsAst.AttributeCall])(implicit builderContext: BuilderContext): scalaAst.Expression = {
     if (isNative(attributeCall.inner)) {
       scalaAst.CallMethod(
         target = scalaAst.Value(s"${attributeCall.inner.typeOfExpression.name}Extension"),
@@ -65,7 +65,7 @@ object ExpressionBuilder {
     }
   }
 
-  private def buildCondition(condition: ScopedExpression[testsAst.Condition])(implicit library: Library): scalaAst.Expression = {
+  private def buildCondition(condition: ScopedExpression[testsAst.Condition])(implicit builderContext: BuilderContext): scalaAst.Expression = {
     scalaAst.IfThenElse(
       cond = buildSimpleExpression(condition.condition),
       ifTrue = buildSimpleExpression(condition.thenCase),
@@ -73,7 +73,7 @@ object ExpressionBuilder {
     )
   }
 
-  private def buildBinary(binary: ScopedExpression[testsAst.Binary])(implicit library: Library): scalaAst.Expression = {
+  private def buildBinary(binary: ScopedExpression[testsAst.Binary])(implicit builderContext: BuilderContext): scalaAst.Expression = {
     scalaAst.BinaryOp(
       binaryOperatorToString(binary.operator),
       buildSimpleExpression(binary.left),
@@ -99,11 +99,11 @@ object ExpressionBuilder {
     }
   }
 
-  def scopedExpression(expression: testsAst.Expression, generators: Seq[GeneratorMeta])(implicit library: Library): ScopedExpression[testsAst.Expression] = {
-    new ScopedExpression[testsAst.Expression](expression, Map.empty, generators, library)
+  def scopedExpression(expression: testsAst.Expression)(implicit builderContext: BuilderContext): ScopedExpression[testsAst.Expression] = {
+    new ScopedExpression[testsAst.Expression](expression, Map.empty, builderContext.generators, builderContext.library)
   }
 
-  def isNative(expression: ScopedExpression[_ <: testsAst.Expression])(implicit library: Library): Boolean = {
-    library.typesMap.get(expression.typeOfExpression.name).collect { case x: NativeClassDefinition => x }.isDefined
+  def isNative(expression: ScopedExpression[_ <: testsAst.Expression])(implicit builderContext: BuilderContext): Boolean = {
+    builderContext.library.typesMap.get(expression.typeOfExpression.name).collect { case x: NativeClassDefinition => x }.isDefined
   }
 }

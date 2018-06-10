@@ -1,18 +1,19 @@
 package definiti.scalatests.builder.tests
 
-import definiti.common.ast.{Library, LiteralMessage, TypedMessage, Verification}
+import definiti.common.ast.{LiteralMessage, TypedMessage, Verification}
+import definiti.scalatests.builder.BuilderContext
 import definiti.scalatests.builder.common.{ExpressionBuilder, GenExpressionBuilder}
 import definiti.scalatests.{ast => scalaAst}
 import definiti.tests.ast.GeneratorMeta
 import definiti.tests.{ast => testsAst}
 
 object TestVerificationBuilder {
-  def buildTestVerification(verificationName: String, testCases: Seq[TestCase], generators: Seq[GeneratorMeta])(implicit library: Library, coreGenerators: Seq[GeneratorMeta]): Seq[scalaAst.Statement] = {
-    val verification = library.verificationsMap(verificationName)
-    buildTestVerifications(verification, testCases, generators)
+  def buildTestVerification(verificationName: String, testCases: Seq[TestCase])(implicit builderContext: BuilderContext): Seq[scalaAst.Statement] = {
+    val verification = builderContext.library.verificationsMap(verificationName)
+    buildTestVerifications(verification, testCases)
   }
 
-  private def buildTestVerifications(verification: Verification, testCases: Seq[TestCase], generators: Seq[GeneratorMeta])(implicit library: Library, coreGenerators: Seq[GeneratorMeta]): Seq[scalaAst.Statement] = {
+  private def buildTestVerifications(verification: Verification, testCases: Seq[TestCase])(implicit builderContext: BuilderContext): Seq[scalaAst.Statement] = {
     testCases.zipWithIndex.map { case (testCase, index) =>
       scalaAst.TestDeclaration(
         subject = if (index == 0) s"Verification ${verification.fullName}" else "it",
@@ -25,26 +26,26 @@ object TestVerificationBuilder {
             }
             s"${kind} for case ${index + 1}"
         },
-        body = buildTestVerificationBody(verification, testCase, generators)
+        body = buildTestVerificationBody(verification, testCase)
       )
     }
   }
 
-  private def buildTestVerificationBody(verification: Verification, testCase: TestCase, generators: Seq[GeneratorMeta])(implicit library: Library, coreGenerators: Seq[GeneratorMeta]): scalaAst.Expression = {
+  private def buildTestVerificationBody(verification: Verification, testCase: TestCase)(implicit builderContext: BuilderContext): scalaAst.Expression = {
     scalaAst.CallHigherOrderFunction(
       target = scalaAst.Value("forAll"),
-      arguments = Seq(GenExpressionBuilder.buildGenExpression(ExpressionBuilder.scopedExpression(testCase.subCase.expression, generators))),
+      arguments = Seq(GenExpressionBuilder.buildGenExpression(ExpressionBuilder.scopedExpression(testCase.subCase.expression))),
       functionArguments = Seq("input"),
-      functionBody = buildTestVerificationBodyAssertion(buildVerificationCall(verification, testCase, generators), verification, testCase, generators),
+      functionBody = buildTestVerificationBodyAssertion(buildVerificationCall(verification, testCase), verification, testCase),
       generics = Seq.empty
     )
   }
 
-  private def buildVerificationCall(verification: Verification, testCase: TestCase, generators: Seq[GeneratorMeta])(implicit library: Library): scalaAst.Expression = {
+  private def buildVerificationCall(verification: Verification, testCase: TestCase)(implicit builderContext: BuilderContext): scalaAst.Expression = {
     scalaAst.CallMethod(
       target = scalaAst.New(
         clazz = verification.fullName,
-        arguments = testCase.subCase.arguments.map(ExpressionBuilder.scopedExpression(_, generators)).map(ExpressionBuilder.buildSimpleExpression),
+        arguments = testCase.subCase.arguments.map(ExpressionBuilder.scopedExpression).map(ExpressionBuilder.buildSimpleExpression),
         generics = Seq.empty
       ),
       name = "verify",
@@ -53,7 +54,7 @@ object TestVerificationBuilder {
 
   }
 
-  private def buildTestVerificationBodyAssertion(result: scalaAst.Expression, verification: Verification, testCase: TestCase, generators: Seq[GeneratorMeta])(implicit library: Library): scalaAst.Expression = {
+  private def buildTestVerificationBodyAssertion(result: scalaAst.Expression, verification: Verification, testCase: TestCase)(implicit builderContext: BuilderContext): scalaAst.Expression = {
     testCase.testCase.kind match {
       case testsAst.CaseKind.accept =>
         scalaAst.CallMethod(
@@ -68,7 +69,7 @@ object TestVerificationBuilder {
             name = "should",
             arguments = Seq(
               function("===", function("Some",
-                buildVerificationMessage(verification, testCase, generators)
+                buildVerificationMessage(verification, testCase)
               ))
             )
           )
@@ -89,12 +90,12 @@ object TestVerificationBuilder {
     )
   }
 
-  private def buildVerificationMessage(verification: Verification, testCase: TestCase, generators: Seq[GeneratorMeta])(implicit library: Library): scalaAst.Expression = {
+  private def buildVerificationMessage(verification: Verification, testCase: TestCase)(implicit builderContext: BuilderContext): scalaAst.Expression = {
     verification.message match {
       case literal: LiteralMessage => function("Message0", scalaAst.StringExpression(literal.message))
       case typed: TypedMessage =>
         val args = testCase.subCase.messageArguments
-        function(s"Message${args.length}", scalaAst.StringExpression(typed.message) +: args.map(ExpressionBuilder.scopedExpression(_, generators)).map(ExpressionBuilder.buildSimpleExpression): _*)
+        function(s"Message${args.length}", scalaAst.StringExpression(typed.message) +: args.map(ExpressionBuilder.scopedExpression).map(ExpressionBuilder.buildSimpleExpression): _*)
     }
   }
 }

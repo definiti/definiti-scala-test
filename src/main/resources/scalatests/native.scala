@@ -5,6 +5,8 @@ import java.time.{LocalDateTime, ZoneId, ZoneOffset}
 import org.scalacheck.{Arbitrary, Gen}
 
 package object native {
+  def initializeGenContext: Gen[Unit] = Gen.const()
+
   def anyBoolean(): Gen[Boolean] = Arbitrary.arbBool.arbitrary
 
   def anyDate(): Gen[LocalDateTime] = Arbitrary.arbDate.arbitrary.map(_.toInstant).map(LocalDateTime.ofInstant(_, ZoneId.systemDefault))
@@ -39,23 +41,22 @@ package object native {
 
   def listOf[A](elements: Gen[A]): Gen[List[A]] = Gen.listOf(elements)
 
-  def listOf[A](elements: A): Gen[List[A]] = Gen.listOf(Gen.const(elements))
-
   def nonEmptyListOf[A](elements: Gen[A]): Gen[List[A]] = Gen.nonEmptyListOf(elements)
-
-  def nonEmptyListOf[A](elements: A): Gen[List[A]] = Gen.nonEmptyListOf(Gen.const(elements))
 
   def boundedListOf[A](min: BigDecimal, max: BigDecimal, elements: Gen[A]): Gen[List[A]] = for {
     n <- Gen.choose(Math.min(min.toInt, max.toInt), Math.max(min.toInt, max.toInt))
     result <- Gen.listOfN(n, elements)
   } yield result
 
-  def boundedListOf[A](min: BigDecimal, max: BigDecimal, elements: A): Gen[List[A]] = for {
-    n <- Gen.choose(Math.min(min.toInt, max.toInt), Math.max(min.toInt, max.toInt))
-    result <- Gen.listOfN(n, Gen.const(elements))
-  } yield result
-
-  def oneOf[A](elements: A*): Gen[A] = Gen.oneOf(elements)
+  def oneOf[A](elements: Gen[A]*): Gen[A] = {
+    if (elements.isEmpty) {
+      throw new IllegalArgumentException("oneOf called on empty collection")
+    } else if (elements.length == 1) {
+      elements.head
+    } else {
+      Gen.oneOf(elements(0), elements(1), elements.drop(2): _*)
+    }
+  }
 
   def anyNumber(): Gen[BigDecimal] = Arbitrary.arbBigDecimal.arbitrary
 
@@ -67,11 +68,9 @@ package object native {
 
   def optionOf[A](element: Gen[A]): Gen[Option[A]] = Gen.option(element)
 
-  def optionOf[A](element: A): Gen[Option[A]] = Gen.option(Gen.const(element))
-
-  def some[A](element: Gen[A]): Gen[Option[A]] = Gen.some(element)
-
   def some[A](element: A): Gen[Option[A]] = Gen.some(Gen.const(element))
+
+  def someOf[A](element: Gen[A]): Gen[Option[A]] = Gen.some(element)
 
   def none[A](): Gen[Option[A]] = Gen.const(None)
 

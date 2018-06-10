@@ -149,51 +149,7 @@ context tests {{{
     if (first < second) first
     else second
 
-  /* Not implemented yet:
+  generator periodList(anyPeriod: Period?): List[Period] = listOf[Period](anyPeriod)
 
-  test type Person {
-    accept
-      {
-        firstName: "first"
-        lastName: "last"
-        phone: "0123456789"
-      }
-
-    accept all(firstName, lastName, phone)
-      ("a", "b", "9876543210")
-      ("x", "y", "123456789012")
-
-    refuse
-      {
-        firstName: ""
-        lastName: ""
-        phone: ""
-      }
-
-    refuse all(firstName, lastName, phone)
-      ("a", "b", "123")
-      ("a", "", "0123456789")
-      ("a", "a", "0123456789")
-  }
-
-  test attribute Person.firstName {
-    accept
-      "a"
-      "b"
-
-    refuse
-      ""
-      " "
-  }
-
-  generator validPerson: Person {
-    firstName: nonEmptyString()
-    lastName: nonEmptyString()
-    phone: stringOf(10, 12)
-
-    filter(person) => {
-      person.firstName != person.lastName
-    }
-  }
-  */
+  generator validPeriodList(): List[Period] = periodList(anyValidPeriod())
 }}}
