@@ -48,7 +48,7 @@ package object native {
     result <- Gen.listOfN(n, elements)
   } yield result
 
-  def oneOf[A](elements: Gen[A]*): Gen[A] = {
+  def takeOneOf[A](elements: Gen[A]*): Gen[A] = {
     if (elements.isEmpty) {
       throw new IllegalArgumentException("oneOf called on empty collection")
     } else if (elements.length == 1) {

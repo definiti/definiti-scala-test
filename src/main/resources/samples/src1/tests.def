@@ -152,4 +152,6 @@ context tests {{{
   generator periodList(anyPeriod: Period?): List[Period] = listOf[Period](anyPeriod)
 
   generator validPeriodList(): List[Period] = periodList(anyValidPeriod())
+
+  generator sign(): String = oneOf[String]("+", "-")
 }}}

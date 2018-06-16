@@ -7,6 +7,10 @@ import definiti.tests.validation.helpers.ScopedExpression
 import definiti.tests.{ast => testsAst}
 
 object GenExpressionBuilder {
+  private val generatorNameMapper: Map[String, String] = Map(
+    "oneOf" -> "takeOneOf"
+  )
+
   def buildGenExpression(scoped: ScopedExpression[testsAst.Expression])(implicit builderContext: BuilderContext): scalaAst.Expression = {
     if (isGenerator(scoped.expression) || scoped.isGeneratorExpression) {
       scoped.expression match {
@@ -111,7 +115,8 @@ object GenExpressionBuilder {
 
   private def generatorName(generation: testsAst.GenerationExpression)(implicit builderContext: BuilderContext): scalaAst.Expression = {
     if (builderContext.coreGenerators.exists(_.fullName == generation.name)) {
-      scalaAst.Value(generation.name)
+      val nativeGeneratorName = generatorNameMapper.getOrElse(generation.name, generation.name)
+      scalaAst.Value(nativeGeneratorName)
     } else {
       val nameWithoutNamespace = StringUtils.lastPart(generation.name)
       val namespace = StringUtils.excludeLastPart(generation.name)
