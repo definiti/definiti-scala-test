@@ -37,13 +37,13 @@ package object native {
     }
   }
 
-  def list[A](elements: A*): Gen[List[A]] = Gen.const(List(elements: _*))
+  def list[A](elements: A*): Gen[Seq[A]] = Gen.const(Seq(elements: _*))
 
-  def listOf[A](elements: Gen[A]): Gen[List[A]] = Gen.listOf(elements)
+  def listOf[A](elements: Gen[A]): Gen[Seq[A]] = Gen.listOf(elements)
 
-  def nonEmptyListOf[A](elements: Gen[A]): Gen[List[A]] = Gen.nonEmptyListOf(elements)
+  def nonEmptyListOf[A](elements: Gen[A]): Gen[Seq[A]] = Gen.nonEmptyListOf(elements)
 
-  def boundedListOf[A](min: BigDecimal, max: BigDecimal, elements: Gen[A]): Gen[List[A]] = for {
+  def boundedListOf[A](min: BigDecimal, max: BigDecimal, elements: Gen[A]): Gen[Seq[A]] = for {
     n <- Gen.choose(Math.min(min.toInt, max.toInt), Math.max(min.toInt, max.toInt))
     result <- Gen.listOfN(n, elements)
   } yield result
