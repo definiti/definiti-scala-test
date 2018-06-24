@@ -27,7 +27,7 @@ object TestTypeBuilder {
   }
 
   private def buildTestTypeBody(classDefinition: ClassDefinition, typ: testsAst.Type, testCase: TestCase)(implicit builderContext: BuilderContext): scalaAst.Expression = {
-    val scopedExpression = new ScopedExpression[testsAst.Expression](testCase.subCase.expression, Map.empty, builderContext.generators, builderContext.library)
+    val scopedExpression = new ScopedExpression[testsAst.Expression](testCase.subCase.expression, Map.empty, Seq.empty, builderContext.generators, builderContext.library)
     scalaAst.CallHigherOrderFunction(
       target = scalaAst.Value("forAll"),
       arguments = Seq(GenExpressionBuilder.buildGenExpression(scopedExpression)),

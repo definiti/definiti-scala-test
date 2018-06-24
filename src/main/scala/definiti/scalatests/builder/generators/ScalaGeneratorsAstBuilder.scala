@@ -59,7 +59,7 @@ class ScalaGeneratorsAstBuilder(config: Configuration, library: Library) {
   }
 
   def scopedExpression(expression: testsAst.Expression, generators: Seq[GeneratorMeta]): ScopedExpression[testsAst.Expression] = {
-    new ScopedExpression[testsAst.Expression](expression, Map.empty, generators, library)
+    new ScopedExpression[testsAst.Expression](expression, Map.empty, Seq.empty, generators, library)
   }
 
   def isNative(expression: ScopedExpression[_ <: testsAst.Expression]): Boolean = {

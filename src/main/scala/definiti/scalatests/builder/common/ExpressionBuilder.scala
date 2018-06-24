@@ -100,7 +100,7 @@ object ExpressionBuilder {
   }
 
   def scopedExpression(expression: testsAst.Expression)(implicit builderContext: BuilderContext): ScopedExpression[testsAst.Expression] = {
-    new ScopedExpression[testsAst.Expression](expression, Map.empty, builderContext.generators, builderContext.library)
+    new ScopedExpression[testsAst.Expression](expression, Map.empty, Seq.empty, builderContext.generators, builderContext.library)
   }
 
   def isNative(expression: ScopedExpression[_ <: testsAst.Expression])(implicit builderContext: BuilderContext): Boolean = {

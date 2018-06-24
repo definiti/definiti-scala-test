@@ -31,6 +31,7 @@ object GeneratorBuilder {
           }
         }.toMap
       },
+      definedGenerics = Seq.empty,
       generators = builderContext.generators,
       library = builderContext.library
     )
