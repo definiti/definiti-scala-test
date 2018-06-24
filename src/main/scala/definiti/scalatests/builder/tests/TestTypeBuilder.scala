@@ -16,7 +16,7 @@ object TestTypeBuilder {
   private def buildTestTypes(classDefinition: ClassDefinition, typ: testsAst.Type, testCases: Seq[TestCase])(implicit builderContext: BuilderContext): Seq[scalaAst.Statement] = {
     testCases.zipWithIndex.map { case (testCase, index) =>
       scalaAst.TestDeclaration(
-        subject = s"Type ${classDefinition.fullName}",
+        subject = if (index == 0) s"Type ${classDefinition.fullName}" else "it",
         name = testCase.testCase.comment match {
           case Some(comment) => s"${comment} (case ${index})"
           case None => s"case ${index}"
